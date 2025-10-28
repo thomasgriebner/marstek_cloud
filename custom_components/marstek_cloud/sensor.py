@@ -1,5 +1,9 @@
 from datetime import datetime
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import (
+    SensorEntity,
+    SensorDeviceClass,
+    SensorStateClass,
+)
 from homeassistant.const import (
     PERCENTAGE,
     UnitOfPower,
@@ -12,11 +16,36 @@ import logging
 
 # Main battery data sensors
 SENSOR_TYPES = {
-    "soc": {"name": "State of Charge", "unit": PERCENTAGE},
-    "charge": {"name": "Charge Power", "unit": UnitOfPower.WATT},
-    "discharge": {"name": "Discharge Power", "unit": UnitOfPower.WATT},
-    "load": {"name": "Load", "unit": UnitOfPower.WATT},
-    "profit": {"name": "Profit", "unit": CURRENCY_EURO},
+    "soc": {
+        "name": "State of Charge",
+        "unit": PERCENTAGE,
+        "device_class": SensorDeviceClass.BATTERY,
+        "state_class": SensorStateClass.MEASUREMENT
+    },
+    "charge": {
+        "name": "Charge Power",
+        "unit": UnitOfPower.WATT,
+        "device_class": SensorDeviceClass.POWER,
+        "state_class": SensorStateClass.MEASUREMENT
+    },
+    "discharge": {
+        "name": "Discharge Power",
+        "unit": UnitOfPower.WATT,
+        "device_class": SensorDeviceClass.POWER,
+        "state_class": SensorStateClass.MEASUREMENT
+    },
+    "load": {
+        "name": "Load",
+        "unit": UnitOfPower.WATT,
+        "device_class": SensorDeviceClass.POWER,
+        "state_class": SensorStateClass.MEASUREMENT
+    },
+    "profit": {
+        "name": "Profit",
+        "unit": CURRENCY_EURO,
+        "device_class": SensorDeviceClass.MONETARY,
+        "state_class": SensorStateClass.TOTAL
+    },
     "version": {"name": "Firmware Version", "unit": None},
     "sn": {"name": "Serial Number", "unit": None},
     "report_time": {"name": "Report Time", "unit": UnitOfTime.SECONDS}
@@ -54,7 +83,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
         # Add total charge per device sensor
         unique_id = f"{device['devid']}_total_charge"
         if unique_id not in existing_entities:  # Check if entity already exists
-            entities.append(MarstekDeviceTotalChargeSensor(coordinator, device, "total_charge", {"name": "Total Charge", "unit": UnitOfEnergy.KILO_WATT_HOUR}))
+            entities.append(MarstekDeviceTotalChargeSensor(coordinator, device, "total_charge", {
+                "name": "Total Charge", 
+                "unit": UnitOfEnergy.KILO_WATT_HOUR,
+                "device_class": SensorDeviceClass.ENERGY,
+                "state_class": SensorStateClass.MEASUREMENT
+            }))
 
     # Add total charge across all devices sensor
     unique_id = f"total_charge_all_devices_{entry.entry_id}"
@@ -80,6 +114,12 @@ class MarstekBaseSensor(SensorEntity):
         self._attr_name = f"{device['name']} {meta['name']}"
         self._attr_unique_id = f"{self.devid}_{self.key}"  # Ensure unique ID includes device ID and sensor key
         self._attr_native_unit_of_measurement = meta["unit"]
+        
+        # Set device_class and state_class if provided in metadata
+        if "device_class" in meta:
+            self._attr_device_class = meta["device_class"]
+        if "state_class" in meta:
+            self._attr_state_class = meta["state_class"]
 
     @property
     def device_info(self):
@@ -139,6 +179,8 @@ class MarstekTotalChargeSensor(SensorEntity):
         # Use entry_id for a stable unique ID
         self._attr_unique_id = f"total_charge_all_devices_{entry_id}"
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+        self._attr_device_class = SensorDeviceClass.ENERGY
+        self._attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
     def native_value(self):
@@ -166,6 +208,8 @@ class MarstekTotalPowerSensor(SensorEntity):
         # Use entry_id for a stable unique ID
         self._attr_unique_id = f"total_power_all_devices_{entry_id}"
         self._attr_native_unit_of_measurement = UnitOfPower.WATT
+        self._attr_device_class = SensorDeviceClass.POWER
+        self._attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
     def native_value(self):
