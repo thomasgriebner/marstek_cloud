@@ -5,7 +5,7 @@ import time
 import logging
 from datetime import timedelta
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from .const import API_LOGIN, API_DEVICES
+from .const import API_LOGIN, API_DEVICES, IGNORED_DEVICE_TYPES
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,7 +59,20 @@ class MarstekAPI:
                 if "data" not in data:
                     raise UpdateFailed(f"Device fetch failed: {data}")
 
-                return data["data"]
+                # Filter out ignored device types
+                filtered_devices = [
+                    device for device in data["data"]
+                    if device.get("type") not in IGNORED_DEVICE_TYPES
+                ]
+                
+                # Debug: Log the filtered device count
+                _LOGGER.debug(
+                    "Filtered out %d devices with ignored types %s",
+                    len(data["data"]) - len(filtered_devices),
+                    IGNORED_DEVICE_TYPES
+                )
+                
+                return filtered_devices
 
 class MarstekCoordinator(DataUpdateCoordinator):
     def __init__(self, hass, api: MarstekAPI, scan_interval: int):
