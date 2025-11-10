@@ -35,7 +35,19 @@ SENSOR_TYPES = {
         "state_class": SensorStateClass.MEASUREMENT
     },
     "load": {
-        "name": "Load",
+        "name": "Load Power",
+        "unit": UnitOfPower.WATT,
+        "device_class": SensorDeviceClass.POWER,
+        "state_class": SensorStateClass.MEASUREMENT
+    },
+    "pv": {
+        "name": "Solar Power",
+        "unit": UnitOfPower.WATT,
+        "device_class": SensorDeviceClass.POWER,
+        "state_class": SensorStateClass.MEASUREMENT
+    },
+    "grid": {
+        "name": "Grid Power",
         "unit": UnitOfPower.WATT,
         "device_class": SensorDeviceClass.POWER,
         "state_class": SensorStateClass.MEASUREMENT
@@ -87,6 +99,26 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 "name": "Total Charge", 
                 "unit": UnitOfEnergy.KILO_WATT_HOUR,
                 "device_class": SensorDeviceClass.ENERGY,
+                "state_class": SensorStateClass.MEASUREMENT
+            }))
+            
+        # Add calculated charge power sensor
+        unique_id = f"{device['devid']}_calculated_charge_power"
+        if unique_id not in existing_entities:  # Check if entity already exists
+            entities.append(MarstekCalculatedChargePowerSensor(coordinator, device, "calculated_charge_power", {
+                "name": "Calculated Charge Power",
+                "unit": UnitOfPower.WATT,
+                "device_class": SensorDeviceClass.POWER,
+                "state_class": SensorStateClass.MEASUREMENT
+            }))
+            
+        # Add calculated discharge power sensor
+        unique_id = f"{device['devid']}_calculated_discharge_power"
+        if unique_id not in existing_entities:  # Check if entity already exists
+            entities.append(MarstekCalculatedDischargePowerSensor(coordinator, device, "calculated_discharge_power", {
+                "name": "Calculated Discharge Power",
+                "unit": UnitOfPower.WATT,
+                "device_class": SensorDeviceClass.POWER,
                 "state_class": SensorStateClass.MEASUREMENT
             }))
 
@@ -234,9 +266,12 @@ class MarstekDeviceTotalChargeSensor(MarstekBaseSensor):
     @property
     def native_value(self):
         """Return the total charge for the device."""
-        soc = self.device_data.get("soc", 0)
-        capacity_kwh = self.device_data.get("capacity_kwh", DEFAULT_CAPACITY_KWH)
-        return round((soc / 100) * capacity_kwh, 2)
+        for dev in self.coordinator.data:
+            if dev["devid"] == self.devid:
+                soc = dev.get("soc", 0)
+                capacity_kwh = dev.get("capacity_kwh", DEFAULT_CAPACITY_KWH)
+                return round((soc / 100) * capacity_kwh, 2)
+        return None
 
     @property
     def extra_state_attributes(self):
@@ -244,3 +279,79 @@ class MarstekDeviceTotalChargeSensor(MarstekBaseSensor):
             "device_name": self.device_data.get("name"),
             "capacity_kwh": self.device_data.get("capacity_kwh", DEFAULT_CAPACITY_KWH),
         }
+
+
+class MarstekCalculatedChargePowerSensor(MarstekBaseSensor):
+    """Sensor to calculate charge power from PV and discharge values."""
+    
+    @property
+    def native_value(self):
+        """Calculate charge power as pv - discharge (only positive values)."""
+        for dev in self.coordinator.data:
+            if dev["devid"] == self.devid:
+                pv = dev.get("pv", 0)
+                discharge = dev.get("discharge", 0)
+                
+                # Calculate charge power: pv - discharge
+                calculated_charge = pv - discharge
+                
+                # Only return positive values (charging), 0 when discharging
+                return max(0, round(calculated_charge, 1))
+                
+        return 0
+        
+    @property
+    def extra_state_attributes(self):
+        """Return additional state attributes."""
+        attrs = {
+            "calculation_method": "pv_minus_discharge",
+        }
+        
+        for dev in self.coordinator.data:
+            if dev["devid"] == self.devid:
+                attrs.update({
+                    "pv_power": dev.get("pv", 0),
+                    "discharge_power": dev.get("discharge", 0),
+                    "raw_calculation": dev.get("pv", 0) - dev.get("discharge", 0)
+                })
+                break
+                
+        return attrs
+
+
+class MarstekCalculatedDischargePowerSensor(MarstekBaseSensor):
+    """Sensor to calculate discharge power when PV is insufficient."""
+    
+    @property
+    def native_value(self):
+        """Calculate discharge power as discharge - pv (only positive values)."""
+        for dev in self.coordinator.data:
+            if dev["devid"] == self.devid:
+                pv = dev.get("pv", 0)
+                discharge = dev.get("discharge", 0)
+                
+                # Calculate discharge power: discharge - pv
+                calculated_discharge = discharge - pv
+                
+                # Only return positive values (discharging), 0 when charging
+                return max(0, round(calculated_discharge, 1))
+                
+        return 0
+        
+    @property
+    def extra_state_attributes(self):
+        """Return additional state attributes."""
+        attrs = {
+            "calculation_method": "discharge_minus_pv",
+        }
+        
+        for dev in self.coordinator.data:
+            if dev["devid"] == self.devid:
+                attrs.update({
+                    "pv_power": dev.get("pv", 0),
+                    "discharge_power": dev.get("discharge", 0),
+                    "raw_calculation": dev.get("discharge", 0) - dev.get("pv", 0)
+                })
+                break
+                
+        return attrs
