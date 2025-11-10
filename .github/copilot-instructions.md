@@ -49,6 +49,7 @@ This integration connects Marstek battery systems to Home Assistant by interacti
 - **Scan Interval**: Configurable between 10 and 3600 seconds.
 - **Default Battery Capacity**: Set to 5.12 kWh unless overridden by the user.
 - **Entity Naming**: Sensor entities use the format `devid_fieldname` for unique IDs.
+- **Device Type Filtering**: Certain device types (e.g., "HME-3") are ignored and filtered out from API responses.
 
 ---
 
