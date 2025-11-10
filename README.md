@@ -37,6 +37,9 @@ This custom integration connects your Marstek battery system (via the Marstek cl
 - **Editable battery capacity**  
   Configure the default capacity (in kWh) for each battery during setup or later via the Options menu.
 
+- **Smart device filtering**  
+  Automatically filters out non-compatible or irrelevant device types (e.g., "HME-3") from the device list.
+
 ---
 
 ## 🛠 Installation
@@ -82,11 +85,12 @@ Here’s how the integration works internally:
   - If the API responds with error code `8` (no access permission), it clears the cached token and logs the error. A new token will be obtained automatically on the next update cycle.
 
 ### 4. **Data Fetching**
-- The coordinator’s `_async_update_data()`:
+- The coordinator's `_async_update_data()`:
   - Records the start time.
   - Calls `api.get_devices()` to fetch the latest battery list.
+  - Filters out ignored device types (e.g., "HME-3").
   - Calculates API latency in milliseconds.
-  - Returns the list of devices to all entities.
+  - Returns the filtered list of devices to all entities.
 
 ### 5. **Entity Creation**
 - `sensor.py`:  
