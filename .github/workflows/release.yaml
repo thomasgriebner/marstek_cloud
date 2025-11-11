@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  release:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate with HACS
+        uses: hacs/action@main
+        with:
+          category: integration
+
+      - name: Validate with Hassfest
+        uses: home-assistant/actions/hassfest@master
+
+      - name: Create ZIP file
+        run: |
+          cd custom_components
+          zip -r ../marstek_cloud.zip marstek_cloud
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: marstek_cloud.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
