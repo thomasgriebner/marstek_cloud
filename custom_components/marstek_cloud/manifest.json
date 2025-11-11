@@ -1,10 +1,11 @@
 {
   "domain": "marstek_cloud",
   "name": "Marstek Cloud",
-  "version": "0.2.0",
-  "documentation": "https://github.com/DoctaShizzle/marstek_cloud",
+  "version": "0.3.0",
+  "documentation": "https://github.com/thomasgriebner/marstek_cloud",
+  "issue_tracker": "https://github.com/thomasgriebner/marstek_cloud/issues",
   "requirements": ["aiohttp"],
-  "codeowners": ["@DoctaShizzle"],
+  "codeowners": ["@thomasgriebner", "@DoctaShizzle"],
   "iot_class": "cloud_polling",
   "config_flow": true
 }
