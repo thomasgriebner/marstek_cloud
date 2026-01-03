@@ -140,7 +140,7 @@ class MarstekBaseSensor(SensorEntity):
 
     def __init__(self, coordinator, device, key, meta):
         self.coordinator = coordinator
-        self.devid = device["devid"]
+        self.devid = device.get("devid", "unknown")
         self.device_data = device
         self.key = key
         self._attr_name = f"{device['name']} {meta['name']}"
@@ -158,10 +158,10 @@ class MarstekBaseSensor(SensorEntity):
         """Return metadata for the device registry."""
         return {
             "identifiers": {(DOMAIN, self.devid)},
-            "name": self.device_data["name"],
+            "name": self.device_data.get("name", f"Marstek {self.devid}"),
             "manufacturer": "Marstek",
             "model": self.device_data.get("type", "Unknown"),
-            "sw_version": str(self.device_data.get("version", "")),
+            "sw_version": str(self.device_data.get("version", "Unknown")),
             "serial_number": self.device_data.get("sn", ""),
         }
 
@@ -173,7 +173,7 @@ class MarstekSensor(MarstekBaseSensor):
     def native_value(self):
         """Return the current value of the sensor."""
         for dev in self.coordinator.data:
-            if dev["devid"] == self.devid:
+            if dev.get("devid") == self.devid:
                 return dev.get(self.key)
         return None
 
@@ -267,7 +267,7 @@ class MarstekDeviceTotalChargeSensor(MarstekBaseSensor):
     def native_value(self):
         """Return the total charge for the device."""
         for dev in self.coordinator.data:
-            if dev["devid"] == self.devid:
+            if dev.get("devid") == self.devid:
                 soc = dev.get("soc", 0)
                 capacity_kwh = dev.get("capacity_kwh", DEFAULT_CAPACITY_KWH)
                 return round((soc / 100) * capacity_kwh, 2)
@@ -288,16 +288,16 @@ class MarstekCalculatedChargePowerSensor(MarstekBaseSensor):
     def native_value(self):
         """Calculate charge power as pv - discharge (only positive values)."""
         for dev in self.coordinator.data:
-            if dev["devid"] == self.devid:
+            if dev.get("devid") == self.devid:
                 pv = dev.get("pv", 0)
                 discharge = dev.get("discharge", 0)
-                
+
                 # Calculate charge power: pv - discharge
                 calculated_charge = pv - discharge
-                
+
                 # Only return positive values (charging), 0 when discharging
                 return max(0, round(calculated_charge, 1))
-                
+
         return 0
         
     @property
@@ -306,16 +306,16 @@ class MarstekCalculatedChargePowerSensor(MarstekBaseSensor):
         attrs = {
             "calculation_method": "pv_minus_discharge",
         }
-        
+
         for dev in self.coordinator.data:
-            if dev["devid"] == self.devid:
+            if dev.get("devid") == self.devid:
                 attrs.update({
                     "pv_power": dev.get("pv", 0),
                     "discharge_power": dev.get("discharge", 0),
                     "raw_calculation": dev.get("pv", 0) - dev.get("discharge", 0)
                 })
                 break
-                
+
         return attrs
 
 
@@ -326,16 +326,16 @@ class MarstekCalculatedDischargePowerSensor(MarstekBaseSensor):
     def native_value(self):
         """Calculate discharge power as discharge - pv (only positive values)."""
         for dev in self.coordinator.data:
-            if dev["devid"] == self.devid:
+            if dev.get("devid") == self.devid:
                 pv = dev.get("pv", 0)
                 discharge = dev.get("discharge", 0)
-                
+
                 # Calculate discharge power: discharge - pv
                 calculated_discharge = discharge - pv
-                
+
                 # Only return positive values (discharging), 0 when charging
                 return max(0, round(calculated_discharge, 1))
-                
+
         return 0
         
     @property
@@ -344,14 +344,14 @@ class MarstekCalculatedDischargePowerSensor(MarstekBaseSensor):
         attrs = {
             "calculation_method": "discharge_minus_pv",
         }
-        
+
         for dev in self.coordinator.data:
-            if dev["devid"] == self.devid:
+            if dev.get("devid") == self.devid:
                 attrs.update({
                     "pv_power": dev.get("pv", 0),
                     "discharge_power": dev.get("discharge", 0),
                     "raw_calculation": dev.get("discharge", 0) - dev.get("pv", 0)
                 })
                 break
-                
+
         return attrs

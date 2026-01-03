@@ -58,8 +58,8 @@ class MarstekOptionsFlow(config_entries.OptionsFlow):
             return self.async_abort(reason="no_devices_found")
 
         for device in devices:
-            devid = device["devid"]
-            name = device["name"]
+            devid = device.get("devid", "unknown")
+            name = device.get("name", f"Device {devid}")
             description = f"Set the capacity (in kWh) for {name}"  # Add description for each option
             data_schema[vol.Optional(
                 f"{devid}_capacity_kwh",
