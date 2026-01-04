@@ -14,10 +14,6 @@ PLATFORMS: list[str] = ["sensor"]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up Marstek from a config entry."""
-    # Pre-import platforms to avoid blocking import inside event loop
-    for platform in PLATFORMS:
-        __import__(f"{__package__}.{platform}")
-
     session = async_get_clientsession(hass)
     api = MarstekAPI(session, entry.data["email"], entry.data["password"])
 
