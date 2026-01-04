@@ -2,22 +2,25 @@ name: Lint
 
 on:
   push:
-    branches:
-      - main
   pull_request:
 
 jobs:
   ruff:
     runs-on: "ubuntu-latest"
-    name: "Ruff"
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+      fail-fast: false
+    name: "Ruff (Python ${{ matrix.python-version }})"
     steps:
       - name: Check out the repository
         uses: "actions/checkout@v4"
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
 
       - name: Install requirements
         run: pip install ruff
