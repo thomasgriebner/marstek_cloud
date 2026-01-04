@@ -33,7 +33,22 @@
     },
     "abort": {
       "already_configured": "This account is already configured. Please use the existing integration or remove it first.",
-      "reauth_successful": "Re-authentication was successful. Your integration is now working again."
+      "reauth_successful": "Re-authentication was successful. Your integration is now working again.",
+      "no_devices_found": "No devices were found in your Marstek Cloud account. Please ensure you have at least one device registered."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure Marstek Cloud Options",
+        "description": "Adjust scan interval and battery capacities. Changes will automatically reload the integration.",
+        "data": {
+          "scan_interval": "Scan interval (seconds)"
+        },
+        "data_description": {
+          "scan_interval": "How often to fetch data from the Marstek API (10-3600 seconds). The integration will automatically reload when you save changes."
+        }
+      }
     }
   }
 }

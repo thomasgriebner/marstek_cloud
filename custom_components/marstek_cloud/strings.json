@@ -27,7 +27,19 @@
     },
     "abort": {
       "already_configured": "Account is already configured",
-      "reauth_successful": "Re-authentication successful"
+      "reauth_successful": "Re-authentication successful",
+      "no_devices_found": "No devices found"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure Marstek Cloud Options",
+        "description": "Adjust scan interval and battery capacities",
+        "data": {
+          "scan_interval": "Scan interval (seconds)"
+        }
+      }
     }
   }
 }
