@@ -11,6 +11,7 @@ from homeassistant.const import (
     UnitOfEnergy,
     CURRENCY_EURO,
 )
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.util import dt as dt_util
 from .const import DOMAIN, DEFAULT_CAPACITY_KWH
 import logging
@@ -155,6 +156,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class MarstekBaseSensor(SensorEntity):
     """Base class for Marstek sensors with shared device info."""
 
+    should_poll = False
+
     def __init__(self, coordinator, device, key, meta):
         self.coordinator = coordinator
         self.devid = device.get("devid", "unknown")
@@ -163,7 +166,7 @@ class MarstekBaseSensor(SensorEntity):
         self._attr_name = f"{device['name']} {meta['name']}"
         self._attr_unique_id = f"{self.devid}_{self.key}"  # Ensure unique ID includes device ID and sensor key
         self._attr_native_unit_of_measurement = meta["unit"]
-        
+
         # Set device_class and state_class if provided in metadata
         if "device_class" in meta:
             self._attr_device_class = meta["device_class"]
@@ -218,6 +221,8 @@ class MarstekSensor(MarstekBaseSensor):
 class MarstekDiagnosticSensor(MarstekBaseSensor):
     """Sensor for integration diagnostics."""
 
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
     @property
     def native_value(self):
         """Return the diagnostic value."""
@@ -237,6 +242,8 @@ class MarstekDiagnosticSensor(MarstekBaseSensor):
 
 class MarstekTotalChargeSensor(SensorEntity):
     """Sensor to calculate the total charge across all devices."""
+
+    should_poll = False
 
     def __init__(self, coordinator, entry_id):
         self.coordinator = coordinator
@@ -266,6 +273,8 @@ class MarstekTotalChargeSensor(SensorEntity):
 
 class MarstekTotalPowerSensor(SensorEntity):
     """Sensor to calculate the total charge and discharge power across all devices."""
+
+    should_poll = False
 
     def __init__(self, coordinator, entry_id):
         self.coordinator = coordinator

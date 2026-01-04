@@ -1,6 +1,5 @@
 import hashlib
 import aiohttp
-import async_timeout
 import asyncio
 import time
 import logging
@@ -27,7 +26,7 @@ class MarstekAPI:
         params = {"pwd": md5_pwd, "mailbox": self._email}
 
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 async with self._session.post(API_LOGIN, params=params) as resp:
                     # Check HTTP status code
                     if resp.status == 401:
@@ -93,7 +92,7 @@ class MarstekAPI:
         params = {"token": self._token}
 
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 async with self._session.get(API_DEVICES, params=params) as resp:
                     # Check HTTP status code
                     if resp.status >= 500:
