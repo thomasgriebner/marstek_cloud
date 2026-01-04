@@ -1,9 +1,8 @@
 import logging
 import voluptuous as vol
-from homeassistant import config_entries
+from homeassistant import config_entries, exceptions
 from homeassistant.config_entries import OptionsFlowWithReload
 from homeassistant.core import callback, HomeAssistant
-from homeassistant.exceptions import InvalidAuth, CannotConnect
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
@@ -11,6 +10,14 @@ from .const import DOMAIN, DEFAULT_SCAN_INTERVAL, DEFAULT_CAPACITY_KWH
 from .coordinator import MarstekAPI
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class InvalidAuth(exceptions.HomeAssistantError):
+    """Error to indicate invalid authentication."""
+
+
+class CannotConnect(exceptions.HomeAssistantError):
+    """Error to indicate we cannot connect."""
 
 DATA_SCHEMA = vol.Schema({
     vol.Required("email"): str,
