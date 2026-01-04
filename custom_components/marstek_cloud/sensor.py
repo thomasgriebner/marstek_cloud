@@ -11,6 +11,7 @@ from homeassistant.const import (
     UnitOfEnergy,
     CURRENCY_EURO,
 )
+from homeassistant.util import dt as dt_util
 from .const import DOMAIN, DEFAULT_CAPACITY_KWH
 import logging
 
@@ -60,13 +61,26 @@ SENSOR_TYPES = {
     },
     "version": {"name": "Firmware Version", "unit": None},
     "sn": {"name": "Serial Number", "unit": None},
-    "report_time": {"name": "Report Time", "unit": UnitOfTime.SECONDS}
+    "report_time": {
+        "name": "Report Time",
+        "device_class": SensorDeviceClass.TIMESTAMP,
+        "unit": None
+    }
 }
 
 # Diagnostic sensors for integration health
 DIAGNOSTIC_SENSORS = {
-    "last_update": {"name": "Last Update", "unit": None},
-    "api_latency": {"name": "API Latency", "unit": "ms"},
+    "last_update": {
+        "name": "Last Update",
+        "device_class": SensorDeviceClass.TIMESTAMP,
+        "unit": None
+    },
+    "api_latency": {
+        "name": "API Latency",
+        "unit": UnitOfTime.MILLISECONDS,
+        "device_class": SensorDeviceClass.DURATION,
+        "state_class": SensorStateClass.MEASUREMENT
+    },
     "connection_status": {"name": "Connection Status", "unit": None},
 }
 
@@ -76,63 +90,66 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up Marstek sensors from a config entry."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
+
+    # Validate coordinator has data
+    if not coordinator.data:
+        _LOGGER.warning("No devices found in coordinator data - skipping entity setup")
+        return
+
     entities = []
-    existing_entities = hass.states.async_entity_ids()  # Get existing entity IDs
 
     for device in coordinator.data:
+        devid = device.get("devid", "unknown")
+
+        # Validate device has valid devid
+        if not devid or devid == "unknown":
+            _LOGGER.warning(f"Skipping device with invalid or missing devid: {device}")
+            continue
+
+        _LOGGER.debug(f"Creating sensors for device {devid}")
+
         # Add main battery data sensors
         for key, meta in SENSOR_TYPES.items():
-            unique_id = f"{device['devid']}_{key}"
-            if unique_id not in existing_entities:  # Check if entity already exists
-                entities.append(MarstekSensor(coordinator, device, key, meta))
+            entities.append(MarstekSensor(coordinator, device, key, meta))
 
         # Add diagnostic sensors
         for key, meta in DIAGNOSTIC_SENSORS.items():
-            unique_id = f"{device['devid']}_{key}"
-            if unique_id not in existing_entities:  # Check if entity already exists
-                entities.append(MarstekDiagnosticSensor(coordinator, device, key, meta))
+            entities.append(MarstekDiagnosticSensor(coordinator, device, key, meta))
 
         # Add total charge per device sensor
-        unique_id = f"{device['devid']}_total_charge"
-        if unique_id not in existing_entities:  # Check if entity already exists
-            entities.append(MarstekDeviceTotalChargeSensor(coordinator, device, "total_charge", {
-                "name": "Total Charge", 
-                "unit": UnitOfEnergy.KILO_WATT_HOUR,
-                "device_class": SensorDeviceClass.ENERGY,
-                "state_class": SensorStateClass.MEASUREMENT
-            }))
-            
+        entities.append(MarstekDeviceTotalChargeSensor(coordinator, device, "total_charge", {
+            "name": "Total Charge",
+            "unit": UnitOfEnergy.KILO_WATT_HOUR,
+            "device_class": SensorDeviceClass.ENERGY,
+            "state_class": SensorStateClass.TOTAL
+        }))
+
         # Add calculated charge power sensor
-        unique_id = f"{device['devid']}_calculated_charge_power"
-        if unique_id not in existing_entities:  # Check if entity already exists
-            entities.append(MarstekCalculatedChargePowerSensor(coordinator, device, "calculated_charge_power", {
-                "name": "Calculated Charge Power",
-                "unit": UnitOfPower.WATT,
-                "device_class": SensorDeviceClass.POWER,
-                "state_class": SensorStateClass.MEASUREMENT
-            }))
-            
+        entities.append(MarstekCalculatedChargePowerSensor(coordinator, device, "calculated_charge_power", {
+            "name": "Calculated Charge Power",
+            "unit": UnitOfPower.WATT,
+            "device_class": SensorDeviceClass.POWER,
+            "state_class": SensorStateClass.MEASUREMENT
+        }))
+
         # Add calculated discharge power sensor
-        unique_id = f"{device['devid']}_calculated_discharge_power"
-        if unique_id not in existing_entities:  # Check if entity already exists
-            entities.append(MarstekCalculatedDischargePowerSensor(coordinator, device, "calculated_discharge_power", {
-                "name": "Calculated Discharge Power",
-                "unit": UnitOfPower.WATT,
-                "device_class": SensorDeviceClass.POWER,
-                "state_class": SensorStateClass.MEASUREMENT
-            }))
+        entities.append(MarstekCalculatedDischargePowerSensor(coordinator, device, "calculated_discharge_power", {
+            "name": "Calculated Discharge Power",
+            "unit": UnitOfPower.WATT,
+            "device_class": SensorDeviceClass.POWER,
+            "state_class": SensorStateClass.MEASUREMENT
+        }))
 
-    # Add total charge across all devices sensor
-    unique_id = f"total_charge_all_devices_{entry.entry_id}"
-    if unique_id not in existing_entities:  # Check if entity already exists
-        entities.append(MarstekTotalChargeSensor(coordinator, entry.entry_id))
+    # Add global sensors (not device-specific)
+    entities.append(MarstekTotalChargeSensor(coordinator, entry.entry_id))
+    entities.append(MarstekTotalPowerSensor(coordinator, entry.entry_id))
 
-    # Add total power across all devices sensor
-    unique_id = f"total_power_all_devices_{entry.entry_id}"
-    if unique_id not in existing_entities:  # Check if entity already exists
-        entities.append(MarstekTotalPowerSensor(coordinator, entry.entry_id))
-
-    async_add_entities(entities)
+    # Add entities - Home Assistant handles deduplication via unique_id automatically
+    if entities:
+        _LOGGER.info(f"Adding {len(entities)} sensor entities for {len(coordinator.data)} device(s)")
+        async_add_entities(entities)
+    else:
+        _LOGGER.warning("No entities created - all devices were skipped")
 
 
 class MarstekBaseSensor(SensorEntity):
@@ -140,7 +157,7 @@ class MarstekBaseSensor(SensorEntity):
 
     def __init__(self, coordinator, device, key, meta):
         self.coordinator = coordinator
-        self.devid = device["devid"]
+        self.devid = device.get("devid", "unknown")
         self.device_data = device
         self.key = key
         self._attr_name = f"{device['name']} {meta['name']}"
@@ -158,10 +175,10 @@ class MarstekBaseSensor(SensorEntity):
         """Return metadata for the device registry."""
         return {
             "identifiers": {(DOMAIN, self.devid)},
-            "name": self.device_data["name"],
+            "name": self.device_data.get("name", f"Marstek {self.devid}"),
             "manufacturer": "Marstek",
             "model": self.device_data.get("type", "Unknown"),
-            "sw_version": str(self.device_data.get("version", "")),
+            "sw_version": str(self.device_data.get("version", "Unknown")),
             "serial_number": self.device_data.get("sn", ""),
         }
 
@@ -173,8 +190,24 @@ class MarstekSensor(MarstekBaseSensor):
     def native_value(self):
         """Return the current value of the sensor."""
         for dev in self.coordinator.data:
-            if dev["devid"] == self.devid:
-                return dev.get(self.key)
+            if dev.get("devid") == self.devid:
+                value = dev.get(self.key)
+
+                # Special handling for timestamp sensors
+                if self.key == "report_time" and value:
+                    try:
+                        # If Unix timestamp (int or float), convert to datetime
+                        if isinstance(value, (int, float)):
+                            dt = datetime.fromtimestamp(value)
+                            return dt_util.as_local(dt)
+                        # If ISO string, parse it
+                        elif isinstance(value, str):
+                            return dt_util.parse_datetime(value)
+                    except (ValueError, OSError, TypeError):
+                        _LOGGER.warning(f"Could not parse timestamp for device {self.devid}: {value}")
+                        return None
+
+                return value
         return None
 
     async def async_update(self):
@@ -190,7 +223,7 @@ class MarstekDiagnosticSensor(MarstekBaseSensor):
         """Return the diagnostic value."""
         if self.key == "last_update":
             if self.coordinator.last_update_success:
-                return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                return dt_util.now()
             return None
 
         elif self.key == "api_latency":
@@ -212,7 +245,7 @@ class MarstekTotalChargeSensor(SensorEntity):
         self._attr_unique_id = f"total_charge_all_devices_{entry_id}"
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
         self._attr_device_class = SensorDeviceClass.ENERGY
-        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_state_class = SensorStateClass.TOTAL
 
     @property
     def native_value(self):
@@ -267,7 +300,7 @@ class MarstekDeviceTotalChargeSensor(MarstekBaseSensor):
     def native_value(self):
         """Return the total charge for the device."""
         for dev in self.coordinator.data:
-            if dev["devid"] == self.devid:
+            if dev.get("devid") == self.devid:
                 soc = dev.get("soc", 0)
                 capacity_kwh = dev.get("capacity_kwh", DEFAULT_CAPACITY_KWH)
                 return round((soc / 100) * capacity_kwh, 2)
@@ -288,16 +321,16 @@ class MarstekCalculatedChargePowerSensor(MarstekBaseSensor):
     def native_value(self):
         """Calculate charge power as pv - discharge (only positive values)."""
         for dev in self.coordinator.data:
-            if dev["devid"] == self.devid:
+            if dev.get("devid") == self.devid:
                 pv = dev.get("pv", 0)
                 discharge = dev.get("discharge", 0)
-                
+
                 # Calculate charge power: pv - discharge
                 calculated_charge = pv - discharge
-                
+
                 # Only return positive values (charging), 0 when discharging
                 return max(0, round(calculated_charge, 1))
-                
+
         return 0
         
     @property
@@ -306,16 +339,16 @@ class MarstekCalculatedChargePowerSensor(MarstekBaseSensor):
         attrs = {
             "calculation_method": "pv_minus_discharge",
         }
-        
+
         for dev in self.coordinator.data:
-            if dev["devid"] == self.devid:
+            if dev.get("devid") == self.devid:
                 attrs.update({
                     "pv_power": dev.get("pv", 0),
                     "discharge_power": dev.get("discharge", 0),
                     "raw_calculation": dev.get("pv", 0) - dev.get("discharge", 0)
                 })
                 break
-                
+
         return attrs
 
 
@@ -326,16 +359,16 @@ class MarstekCalculatedDischargePowerSensor(MarstekBaseSensor):
     def native_value(self):
         """Calculate discharge power as discharge - pv (only positive values)."""
         for dev in self.coordinator.data:
-            if dev["devid"] == self.devid:
+            if dev.get("devid") == self.devid:
                 pv = dev.get("pv", 0)
                 discharge = dev.get("discharge", 0)
-                
+
                 # Calculate discharge power: discharge - pv
                 calculated_discharge = discharge - pv
-                
+
                 # Only return positive values (discharging), 0 when charging
                 return max(0, round(calculated_discharge, 1))
-                
+
         return 0
         
     @property
@@ -344,14 +377,14 @@ class MarstekCalculatedDischargePowerSensor(MarstekBaseSensor):
         attrs = {
             "calculation_method": "discharge_minus_pv",
         }
-        
+
         for dev in self.coordinator.data:
-            if dev["devid"] == self.devid:
+            if dev.get("devid") == self.devid:
                 attrs.update({
                     "pv_power": dev.get("pv", 0),
                     "discharge_power": dev.get("discharge", 0),
                     "raw_calculation": dev.get("discharge", 0) - dev.get("pv", 0)
                 })
                 break
-                
+
         return attrs

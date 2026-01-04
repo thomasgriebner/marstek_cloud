@@ -6,38 +6,48 @@ This custom integration connects your Marstek battery system (via the Marstek cl
 
 ## ✨ Features
 
-- **Automatic login & token refresh**  
+- **Automatic login & token refresh**
   Logs in to the Marstek cloud API using your credentials, hashes your password (MD5) before sending, and automatically refreshes the token if it expires.
-  
-- **Configurable scan interval**  
-  Set how often the integration polls the API (10–3600 seconds) during initial setup or later via the Options menu.
 
-- **Battery metrics exposed as sensors**  
-  - `soc` – State of charge (%)
-  - `charge` – Charge power (W)
-  - `discharge` – Discharge power (W)
-  - `load` – Load power (W)
-  - `profit` – Profit (€)
+- **Re-authentication flow**
+  When credentials expire, Home Assistant automatically prompts you to re-enter them without needing to delete and re-add the integration.
+
+- **Options flow with auto-reload**
+  Change scan interval and battery capacities through the Options menu. The integration automatically reloads when you save changes.
+
+- **Robust error handling**
+  Gracefully handles API errors, network issues, and timeouts with intelligent retry logic and clear error messages.
+
+- **Battery metrics exposed as sensors**
+  - `soc` – State of charge (%) with Battery device class
+  - `charge` – Charge power (W) with Power device class
+  - `discharge` – Discharge power (W) with Power device class
+  - `load` – Load power (W) with Power device class
+  - `pv` – Solar power (W) with Power device class
+  - `grid` – Grid power (W) with Power device class
+  - `profit` – Profit (€) with Monetary device class
   - `version` – Firmware version
   - `sn` – Serial number
-  - `report_time` – Timestamp of last report
-  - `total_charge` – Total charge per device (kWh).
+  - `report_time` – Timestamp of last report with Timestamp device class
+  - `total_charge` – Total stored energy per device (kWh) with Energy device class
 
-- **Cross-device total charge sensor**  
-  - `total_charge_all_devices` – Sum of total charges across all batteries (kWh).
+- **Calculated power sensors**
+  - `calculated_charge_power` – Calculated charge power (pv - discharge) for accurate charge tracking
+  - `calculated_discharge_power` – Calculated discharge power (discharge - pv) for accurate discharge tracking
 
-- **Diagnostic sensors**  
-  - `last_update` – Time of last successful update
-  - `api_latency` – API call duration in milliseconds
+- **Cross-device total sensors**
+  - `total_charge_all_devices` – Sum of total stored energy across all batteries (kWh)
+  - `total_power_all_devices` – Total power (charge - discharge) across all devices (W)
+
+- **Diagnostic sensors**
+  - `last_update` – Time of last successful update with Timestamp device class
+  - `api_latency` – API call duration with Duration device class
   - `connection_status` – Online/offline status
 
-- **Device registry integration**  
+- **Device registry integration**
   Each battery appears as a device in HA with model, serial number, firmware version, and manufacturer.
 
-- **Editable battery capacity**  
-  Configure the default capacity (in kWh) for each battery during setup or later via the Options menu.
-
-- **Smart device filtering**  
+- **Smart device filtering**
   Automatically filters out non-compatible or irrelevant device types (e.g., "HME-3") from the device list.
 
 ---
@@ -64,10 +74,25 @@ This custom integration connects your Marstek battery system (via the Marstek cl
 
 ## ⚙ Configuration
 
-- **Scan interval** can be set during initial setup and changed later via the integration’s **Configure** option.
-- **Default battery capacity** (in kWh) can be set for each battery during setup or via the **Options** menu.
-- Default capacity is 5.12 kWh.
-- Minimum scan interval is 10 seconds, maximum is 3600 seconds.
+### Initial Setup
+1. Go to **Settings → Devices & Services → Add Integration** and search for **Marstek Cloud**
+2. Enter your Marstek Cloud credentials (email and password)
+3. Configure scan interval (10-3600 seconds, default: 60 seconds)
+4. Set default battery capacity (default: 5.12 kWh)
+5. Click **Submit** - credentials are validated before saving
+
+### Options Menu
+Access via **Settings → Devices & Services → Marstek Cloud → Configure**:
+- **Scan interval** – Change how often data is fetched from the API
+- **Battery capacities** – Adjust capacity for each discovered battery
+- Changes take effect immediately with automatic integration reload
+
+### Re-authentication
+If your credentials expire or change:
+1. Home Assistant will display a notification
+2. Click **Authenticate** in the notification or go to the integration settings
+3. Enter your new credentials
+4. Integration continues working without losing entity IDs or automations
 
 ---
 
@@ -159,3 +184,75 @@ sequenceDiagram
         ENT-->>HA: Display updated metrics
     end
 ```
+
+---
+
+## 🐛 Troubleshooting
+
+### Integration setup fails with "invalid_auth"
+- **Cause**: Incorrect email or password
+- **Solution**: Double-check your Marstek Cloud credentials and try again
+
+### Integration setup fails with "cannot_connect"
+- **Cause**: Network issue or Marstek API temporarily unavailable
+- **Solution**: Check your internet connection and try again in a few minutes
+
+### Sensors show "unavailable"
+- **Cause**: API connection issues or integration not loaded properly
+- **Solution**:
+  1. Check Home Assistant logs: **Settings → System → Logs**
+  2. Look for warnings or errors from `marstek_cloud`
+  3. Try reloading the integration: **Settings → Devices & Services → Marstek Cloud → ... → Reload**
+
+### "No devices found" error
+- **Cause**: Your Marstek Cloud account has no compatible devices registered
+- **Solution**: Ensure at least one battery is registered in your Marstek Cloud account
+
+### Authentication notifications keep appearing
+- **Cause**: Invalid credentials or API token issues
+- **Solution**:
+  1. Click **Authenticate** in the notification
+  2. Enter correct credentials
+  3. If issue persists, remove and re-add the integration
+
+### Enable debug logging
+To see detailed logs for troubleshooting:
+1. Add to `configuration.yaml`:
+```yaml
+logger:
+  default: info
+  logs:
+    custom_components.marstek_cloud: debug
+```
+2. Restart Home Assistant
+3. Check logs: **Settings → System → Logs**
+
+---
+
+## 📝 Changelog
+
+### Version 0.4.0
+- ✨ Added re-authentication flow for expired credentials
+- ✨ Added options flow with auto-reload for scan interval and capacity changes
+- ✨ Improved sensor device classes (TIMESTAMP, DURATION) for better Home Assistant integration
+- ✨ Changed energy sensor state class from MEASUREMENT to TOTAL for proper statistics
+- 🐛 Fixed error handling for API timeouts and network issues
+- 🐛 Fixed entity creation logic (removed broken duplicate checking)
+- 🐛 Improved logging with intelligent log levels (ERROR vs WARNING)
+- 📚 Added German and English translations for all flows
+- 🔧 Improved CI/CD with Python version matrix testing (3.11, 3.12)
+
+### Version 0.3.0
+- Initial HACS release
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit issues or pull requests.
+
+---
+
+## 📄 License
+
+This project is provided as-is for personal use.

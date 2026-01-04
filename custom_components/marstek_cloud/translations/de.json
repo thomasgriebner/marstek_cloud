@@ -1,0 +1,54 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mit Marstek Cloud verbinden",
+        "description": "Geben Sie Ihre Marstek Cloud Zugangsdaten ein, um Ihr Batteriesystem mit Home Assistant zu verbinden.",
+        "data": {
+          "email": "E-Mail",
+          "password": "Passwort",
+          "scan_interval": "Aktualisierungsintervall (Sekunden)",
+          "default_capacity_kwh": "Standard-Batteriekapazität (kWh)"
+        },
+        "data_description": {
+          "email": "Ihre Marstek Cloud Konto E-Mail-Adresse",
+          "password": "Ihr Marstek Cloud Konto Passwort",
+          "scan_interval": "Wie oft Daten von der API abgerufen werden sollen (10-3600 Sekunden)",
+          "default_capacity_kwh": "Standardkapazität für jede Batterie in Kilowattstunden"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Erneute Authentifizierung bei Marstek Cloud",
+        "description": "Ihre Zugangsdaten sind abgelaufen oder nicht mehr gültig. Bitte geben Sie Ihre E-Mail und Ihr Passwort erneut ein, um die Integration weiter zu nutzen.",
+        "data": {
+          "email": "E-Mail",
+          "password": "Passwort"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Ungültige E-Mail oder Passwort. Bitte überprüfen Sie Ihre Zugangsdaten und versuchen Sie es erneut.",
+      "cannot_connect": "Verbindung zu Marstek Cloud nicht möglich. Die API ist möglicherweise vorübergehend nicht verfügbar oder es liegt ein Netzwerkproblem vor. Bitte versuchen Sie es später erneut.",
+      "unknown": "Ein unerwarteter Fehler ist aufgetreten. Bitte überprüfen Sie die Protokolle für weitere Details."
+    },
+    "abort": {
+      "already_configured": "Dieses Konto ist bereits konfiguriert. Bitte verwenden Sie die vorhandene Integration oder entfernen Sie diese zuerst.",
+      "reauth_successful": "Die erneute Authentifizierung war erfolgreich. Ihre Integration funktioniert jetzt wieder.",
+      "no_devices_found": "Es wurden keine Geräte in Ihrem Marstek Cloud-Konto gefunden. Bitte stellen Sie sicher, dass mindestens ein Gerät registriert ist."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Marstek Cloud Optionen konfigurieren",
+        "description": "Aktualisierungsintervall und Batteriekapazitäten anpassen. Änderungen laden die Integration automatisch neu.",
+        "data": {
+          "scan_interval": "Aktualisierungsintervall (Sekunden)"
+        },
+        "data_description": {
+          "scan_interval": "Wie oft Daten von der Marstek API abgerufen werden (10-3600 Sekunden). Die Integration wird beim Speichern automatisch neu geladen."
+        }
+      }
+    }
+  }
+}
