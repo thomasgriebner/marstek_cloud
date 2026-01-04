@@ -1,0 +1,33 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Marstek Cloud",
+        "description": "Enter your Marstek Cloud credentials",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "scan_interval": "Scan interval (seconds)",
+          "default_capacity_kwh": "Default battery capacity (kWh)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate with Marstek Cloud",
+        "description": "Your credentials have expired. Please enter your email and password again.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email or password",
+      "cannot_connect": "Unable to connect to Marstek Cloud. Please try again later.",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "Account is already configured",
+      "reauth_successful": "Re-authentication successful"
+    }
+  }
+}

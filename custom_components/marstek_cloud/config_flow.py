@@ -1,7 +1,15 @@
+import logging
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.core import callback
+from homeassistant.core import callback, HomeAssistant
+from homeassistant.exceptions import InvalidAuth, CannotConnect
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.update_coordinator import UpdateFailed
+
 from .const import DOMAIN, DEFAULT_SCAN_INTERVAL, DEFAULT_CAPACITY_KWH
+from .coordinator import MarstekAPI
+
+_LOGGER = logging.getLogger(__name__)
 
 DATA_SCHEMA = vol.Schema({
     vol.Required("email"): str,
@@ -10,26 +18,125 @@ DATA_SCHEMA = vol.Schema({
         "scan_interval",
         default=DEFAULT_SCAN_INTERVAL
     ): vol.All(vol.Coerce(int), vol.Range(min=10, max=3600)),
-    vol.Optional("default_capacity_kwh", default=5.12): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=100))  # Rename capacity_kwh to default_capacity_kwh
+    vol.Optional("default_capacity_kwh", default=5.12): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=100))
 })
 
+
+async def validate_input(hass: HomeAssistant, data: dict) -> dict:
+    """Validate the user input by testing API connection.
+
+    This function creates a temporary API instance and attempts to fetch devices
+    to verify that the credentials are valid and the user has API access.
+
+    Args:
+        hass: Home Assistant instance
+        data: User input data containing email and password
+
+    Returns:
+        dict: Information about the validated connection (title)
+
+    Raises:
+        InvalidAuth: If credentials are invalid (HTTP 401)
+        CannotConnect: If unable to connect to API (network, timeout, server error)
+    """
+    session = async_get_clientsession(hass)
+    api = MarstekAPI(session, data["email"], data["password"])
+
+    try:
+        # Attempt to fetch devices - this validates credentials and API access
+        devices = await api.get_devices()
+        _LOGGER.debug(f"Credential validation successful, found {len(devices)} device(s)")
+
+        # Return info for config entry title
+        return {"title": f"Marstek Cloud ({data['email']})"}
+
+    except UpdateFailed as ex:
+        error_msg = str(ex)
+        _LOGGER.warning(f"Credential validation failed: {error_msg}")
+
+        # Map MarstekAPI errors to Home Assistant exceptions
+        if "Invalid email or password" in error_msg:
+            raise InvalidAuth(error_msg) from ex
+        else:
+            # All other UpdateFailed errors are connectivity issues
+            raise CannotConnect(error_msg) from ex
+
 class MarstekConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Marstek Cloud."""
+
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
+        """Handle the initial user configuration step."""
+        errors = {}
+
         if user_input is not None:
-            return self.async_create_entry(
-                title="Marstek Cloud",
-                data={
-                    "email": user_input["email"],
-                    "password": user_input["password"],
-                    "scan_interval": user_input["scan_interval"],
-                    "default_capacity_kwh": user_input.get("default_capacity_kwh", 5.12)  # Default capacity in kwh for all devices
-                }
-            )
+            try:
+                # Validate credentials by attempting API connection
+                info = await validate_input(self.hass, user_input)
+            except InvalidAuth:
+                errors["base"] = "invalid_auth"
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            except Exception:
+                _LOGGER.exception("Unexpected error during credential validation")
+                errors["base"] = "unknown"
+            else:
+                # Validation successful - create config entry
+                return self.async_create_entry(
+                    title=info["title"],
+                    data={
+                        "email": user_input["email"],
+                        "password": user_input["password"],
+                        "scan_interval": user_input["scan_interval"],
+                        "default_capacity_kwh": user_input.get("default_capacity_kwh", DEFAULT_CAPACITY_KWH)
+                    }
+                )
+
         return self.async_show_form(
             step_id="user",
-            data_schema=DATA_SCHEMA
+            data_schema=DATA_SCHEMA,
+            errors=errors
+        )
+
+    async def async_step_reauth(self, entry_data=None):
+        """Handle reauth flow when credentials expire."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(self, user_input=None):
+        """Confirm reauth with new credentials."""
+        config_entry = self._get_reauth_entry()
+        errors = {}
+
+        if user_input is not None:
+            try:
+                # Validate new credentials
+                await validate_input(self.hass, user_input)
+            except InvalidAuth:
+                errors["base"] = "invalid_auth"
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            except Exception:
+                _LOGGER.exception("Unexpected error during reauth validation")
+                errors["base"] = "unknown"
+            else:
+                # Validation successful - update config entry
+                return self.async_update_reload_and_abort(
+                    config_entry,
+                    data={**config_entry.data, **user_input},
+                    reason="reauth_successful"
+                )
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({
+                vol.Required("email", default=config_entry.data.get("email")): str,
+                vol.Required("password"): str,
+            }),
+            errors=errors,
+            description_placeholders={
+                "email": config_entry.data.get("email", "")
+            }
         )
 
     @staticmethod

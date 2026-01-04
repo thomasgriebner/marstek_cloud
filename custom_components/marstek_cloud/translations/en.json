@@ -1,0 +1,39 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Marstek Cloud",
+        "description": "Enter your Marstek Cloud credentials to connect your battery system to Home Assistant.",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "scan_interval": "Scan interval (seconds)",
+          "default_capacity_kwh": "Default battery capacity (kWh)"
+        },
+        "data_description": {
+          "email": "Your Marstek Cloud account email address",
+          "password": "Your Marstek Cloud account password",
+          "scan_interval": "How often to fetch data from the API (10-3600 seconds)",
+          "default_capacity_kwh": "Default capacity for each battery in kilowatt-hours"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate with Marstek Cloud",
+        "description": "Your credentials have expired or are no longer valid. Please enter your email and password again to continue using the integration.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email or password. Please check your credentials and try again.",
+      "cannot_connect": "Unable to connect to Marstek Cloud. The API may be temporarily unavailable or there may be a network issue. Please try again later.",
+      "unknown": "An unexpected error occurred. Please check the logs for more details."
+    },
+    "abort": {
+      "already_configured": "This account is already configured. Please use the existing integration or remove it first.",
+      "reauth_successful": "Re-authentication was successful. Your integration is now working again."
+    }
+  }
+}
