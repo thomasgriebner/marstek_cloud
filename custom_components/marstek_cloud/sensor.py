@@ -11,6 +11,7 @@ from homeassistant.const import (
     UnitOfEnergy,
     CURRENCY_EURO,
 )
+from homeassistant.util import dt as dt_util
 from .const import DOMAIN, DEFAULT_CAPACITY_KWH
 import logging
 
@@ -60,13 +61,26 @@ SENSOR_TYPES = {
     },
     "version": {"name": "Firmware Version", "unit": None},
     "sn": {"name": "Serial Number", "unit": None},
-    "report_time": {"name": "Report Time", "unit": UnitOfTime.SECONDS}
+    "report_time": {
+        "name": "Report Time",
+        "device_class": SensorDeviceClass.TIMESTAMP,
+        "unit": None
+    }
 }
 
 # Diagnostic sensors for integration health
 DIAGNOSTIC_SENSORS = {
-    "last_update": {"name": "Last Update", "unit": None},
-    "api_latency": {"name": "API Latency", "unit": "ms"},
+    "last_update": {
+        "name": "Last Update",
+        "device_class": SensorDeviceClass.TIMESTAMP,
+        "unit": None
+    },
+    "api_latency": {
+        "name": "API Latency",
+        "unit": UnitOfTime.MILLISECONDS,
+        "device_class": SensorDeviceClass.DURATION,
+        "state_class": SensorStateClass.MEASUREMENT
+    },
     "connection_status": {"name": "Connection Status", "unit": None},
 }
 
@@ -107,7 +121,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
             "name": "Total Charge",
             "unit": UnitOfEnergy.KILO_WATT_HOUR,
             "device_class": SensorDeviceClass.ENERGY,
-            "state_class": SensorStateClass.MEASUREMENT
+            "state_class": SensorStateClass.TOTAL
         }))
 
         # Add calculated charge power sensor
@@ -177,7 +191,23 @@ class MarstekSensor(MarstekBaseSensor):
         """Return the current value of the sensor."""
         for dev in self.coordinator.data:
             if dev.get("devid") == self.devid:
-                return dev.get(self.key)
+                value = dev.get(self.key)
+
+                # Special handling for timestamp sensors
+                if self.key == "report_time" and value:
+                    try:
+                        # If Unix timestamp (int or float), convert to datetime
+                        if isinstance(value, (int, float)):
+                            dt = datetime.fromtimestamp(value)
+                            return dt_util.as_local(dt)
+                        # If ISO string, parse it
+                        elif isinstance(value, str):
+                            return dt_util.parse_datetime(value)
+                    except (ValueError, OSError, TypeError):
+                        _LOGGER.warning(f"Could not parse timestamp for device {self.devid}: {value}")
+                        return None
+
+                return value
         return None
 
     async def async_update(self):
@@ -193,7 +223,7 @@ class MarstekDiagnosticSensor(MarstekBaseSensor):
         """Return the diagnostic value."""
         if self.key == "last_update":
             if self.coordinator.last_update_success:
-                return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                return dt_util.now()
             return None
 
         elif self.key == "api_latency":
@@ -215,7 +245,7 @@ class MarstekTotalChargeSensor(SensorEntity):
         self._attr_unique_id = f"total_charge_all_devices_{entry_id}"
         self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
         self._attr_device_class = SensorDeviceClass.ENERGY
-        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_state_class = SensorStateClass.TOTAL
 
     @property
     def native_value(self):
