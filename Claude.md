@@ -117,7 +117,72 @@ except Exception as e:
 - ❌ **DON'T**: Block the event loop with synchronous I/O
 - ❌ **DON'T**: Update entities individually (use coordinator broadcasts)
 
-### 4. Backward Compatibility
+### 4. Entity Creation and unique_id
+
+**CRITICAL: Trust Home Assistant's entity registry for deduplication**
+
+- ✅ **DO**: Assign stable `unique_id` to every entity
+- ✅ **DO**: Base `unique_id` on device hardware ID (not user-changeable name)
+- ✅ **DO**: Let `async_add_entities()` handle duplicate prevention
+- ✅ **DO**: Validate data before creating entities
+- ❌ **DON'T**: Manually check for duplicate entities
+- ❌ **DON'T**: Use `hass.states.async_entity_ids()` for duplicate checking
+- ❌ **DON'T**: Change `unique_id` format between versions (breaks entity registry)
+- ❌ **DON'T**: Base `unique_id` on user-configurable values
+
+**Why manual duplicate checking is wrong:**
+
+Home Assistant's entity platform (`async_add_entities()`) automatically:
+1. Checks if an entity with the same `unique_id` exists in the registry
+2. Reuses the existing `entity_id` if found (maintains user customizations)
+3. Prevents duplicate entities from being added
+4. Logs errors if duplicates are attempted
+
+**Correct pattern:**
+```python
+async def async_setup_entry(hass, entry, async_add_entities):
+    """Set up sensors from a config entry."""
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+
+    # Validate data exists
+    if not coordinator.data:
+        _LOGGER.warning("No data available")
+        return
+
+    entities = []
+
+    for device in coordinator.data:
+        devid = device.get("devid", "unknown")
+
+        # Validate device
+        if not devid or devid == "unknown":
+            _LOGGER.warning(f"Skipping invalid device")
+            continue
+
+        # Create entities - NO duplicate checking needed!
+        entities.append(MySensor(coordinator, device, ...))
+
+    # Home Assistant handles deduplication automatically
+    if entities:
+        async_add_entities(entities)
+```
+
+**Wrong pattern (DO NOT USE):**
+```python
+# ❌ WRONG - This doesn't work!
+existing = hass.states.async_entity_ids()  # Returns entity_ids
+unique_id = "device123_sensor"              # Different format
+if unique_id not in existing:               # Never matches!
+    entities.append(MySensor(...))
+```
+
+**unique_id format rules:**
+- Format: `{device_hardware_id}_{sensor_type}`
+- Example: `SN12345_soc`, `devid789_charge_power`
+- Must remain stable across restarts and updates
+- Never use device name (user can rename it)
+
+### 5. Backward Compatibility
 
 **ALWAYS** maintain compatibility with existing installations:
 

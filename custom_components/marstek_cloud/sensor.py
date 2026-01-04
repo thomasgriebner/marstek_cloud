@@ -76,63 +76,66 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up Marstek sensors from a config entry."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
+
+    # Validate coordinator has data
+    if not coordinator.data:
+        _LOGGER.warning("No devices found in coordinator data - skipping entity setup")
+        return
+
     entities = []
-    existing_entities = hass.states.async_entity_ids()  # Get existing entity IDs
 
     for device in coordinator.data:
+        devid = device.get("devid", "unknown")
+
+        # Validate device has valid devid
+        if not devid or devid == "unknown":
+            _LOGGER.warning(f"Skipping device with invalid or missing devid: {device}")
+            continue
+
+        _LOGGER.debug(f"Creating sensors for device {devid}")
+
         # Add main battery data sensors
         for key, meta in SENSOR_TYPES.items():
-            unique_id = f"{device['devid']}_{key}"
-            if unique_id not in existing_entities:  # Check if entity already exists
-                entities.append(MarstekSensor(coordinator, device, key, meta))
+            entities.append(MarstekSensor(coordinator, device, key, meta))
 
         # Add diagnostic sensors
         for key, meta in DIAGNOSTIC_SENSORS.items():
-            unique_id = f"{device['devid']}_{key}"
-            if unique_id not in existing_entities:  # Check if entity already exists
-                entities.append(MarstekDiagnosticSensor(coordinator, device, key, meta))
+            entities.append(MarstekDiagnosticSensor(coordinator, device, key, meta))
 
         # Add total charge per device sensor
-        unique_id = f"{device['devid']}_total_charge"
-        if unique_id not in existing_entities:  # Check if entity already exists
-            entities.append(MarstekDeviceTotalChargeSensor(coordinator, device, "total_charge", {
-                "name": "Total Charge", 
-                "unit": UnitOfEnergy.KILO_WATT_HOUR,
-                "device_class": SensorDeviceClass.ENERGY,
-                "state_class": SensorStateClass.MEASUREMENT
-            }))
-            
+        entities.append(MarstekDeviceTotalChargeSensor(coordinator, device, "total_charge", {
+            "name": "Total Charge",
+            "unit": UnitOfEnergy.KILO_WATT_HOUR,
+            "device_class": SensorDeviceClass.ENERGY,
+            "state_class": SensorStateClass.MEASUREMENT
+        }))
+
         # Add calculated charge power sensor
-        unique_id = f"{device['devid']}_calculated_charge_power"
-        if unique_id not in existing_entities:  # Check if entity already exists
-            entities.append(MarstekCalculatedChargePowerSensor(coordinator, device, "calculated_charge_power", {
-                "name": "Calculated Charge Power",
-                "unit": UnitOfPower.WATT,
-                "device_class": SensorDeviceClass.POWER,
-                "state_class": SensorStateClass.MEASUREMENT
-            }))
-            
+        entities.append(MarstekCalculatedChargePowerSensor(coordinator, device, "calculated_charge_power", {
+            "name": "Calculated Charge Power",
+            "unit": UnitOfPower.WATT,
+            "device_class": SensorDeviceClass.POWER,
+            "state_class": SensorStateClass.MEASUREMENT
+        }))
+
         # Add calculated discharge power sensor
-        unique_id = f"{device['devid']}_calculated_discharge_power"
-        if unique_id not in existing_entities:  # Check if entity already exists
-            entities.append(MarstekCalculatedDischargePowerSensor(coordinator, device, "calculated_discharge_power", {
-                "name": "Calculated Discharge Power",
-                "unit": UnitOfPower.WATT,
-                "device_class": SensorDeviceClass.POWER,
-                "state_class": SensorStateClass.MEASUREMENT
-            }))
+        entities.append(MarstekCalculatedDischargePowerSensor(coordinator, device, "calculated_discharge_power", {
+            "name": "Calculated Discharge Power",
+            "unit": UnitOfPower.WATT,
+            "device_class": SensorDeviceClass.POWER,
+            "state_class": SensorStateClass.MEASUREMENT
+        }))
 
-    # Add total charge across all devices sensor
-    unique_id = f"total_charge_all_devices_{entry.entry_id}"
-    if unique_id not in existing_entities:  # Check if entity already exists
-        entities.append(MarstekTotalChargeSensor(coordinator, entry.entry_id))
+    # Add global sensors (not device-specific)
+    entities.append(MarstekTotalChargeSensor(coordinator, entry.entry_id))
+    entities.append(MarstekTotalPowerSensor(coordinator, entry.entry_id))
 
-    # Add total power across all devices sensor
-    unique_id = f"total_power_all_devices_{entry.entry_id}"
-    if unique_id not in existing_entities:  # Check if entity already exists
-        entities.append(MarstekTotalPowerSensor(coordinator, entry.entry_id))
-
-    async_add_entities(entities)
+    # Add entities - Home Assistant handles deduplication via unique_id automatically
+    if entities:
+        _LOGGER.info(f"Adding {len(entities)} sensor entities for {len(coordinator.data)} device(s)")
+        async_add_entities(entities)
+    else:
+        _LOGGER.warning("No entities created - all devices were skipped")
 
 
 class MarstekBaseSensor(SensorEntity):
