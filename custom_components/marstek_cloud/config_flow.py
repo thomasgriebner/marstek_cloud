@@ -156,17 +156,13 @@ class MarstekConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class MarstekOptionsFlow(OptionsFlowWithReload):
     """Handle options flow for Marstek integration - auto-reloads on save."""
 
-    def __init__(self, config_entry):
-        super().__init__(config_entry)
-        self._config_entry = config_entry  # Keep for compatibility
-
     async def async_step_init(self, user_input=None):
         """Manage the options for the integration."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
         # Generate a schema for editing scan_interval and capacity_kwh for each battery
-        options = self._config_entry.options
+        options = self.config_entry.options
         data_schema = {}
 
         # Add scan_interval as first option
@@ -174,12 +170,12 @@ class MarstekOptionsFlow(OptionsFlowWithReload):
             "scan_interval",
             default=options.get(
                 "scan_interval",
-                self._config_entry.data.get("scan_interval", DEFAULT_SCAN_INTERVAL)
+                self.config_entry.data.get("scan_interval", DEFAULT_SCAN_INTERVAL)
             )
         )] = vol.All(vol.Coerce(int), vol.Range(min=10, max=3600))
 
         # Handle missing devices key gracefully
-        devices = self._config_entry.data.get("devices", [])
+        devices = self.config_entry.data.get("devices", [])
         if not devices:
             return self.async_abort(reason="no_devices_found")
 
