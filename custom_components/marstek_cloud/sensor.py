@@ -12,6 +12,7 @@ from homeassistant.const import (
     CURRENCY_EURO,
 )
 from homeassistant.helpers.entity import EntityCategory
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 from .const import DOMAIN, DEFAULT_CAPACITY_KWH
 import logging
@@ -153,13 +154,11 @@ async def async_setup_entry(hass, entry, async_add_entities):
         _LOGGER.warning("No entities created - all devices were skipped")
 
 
-class MarstekBaseSensor(SensorEntity):
+class MarstekBaseSensor(CoordinatorEntity, SensorEntity):
     """Base class for Marstek sensors with shared device info."""
 
-    should_poll = False
-
     def __init__(self, coordinator, device, key, meta):
-        self.coordinator = coordinator
+        super().__init__(coordinator)
         self.devid = device.get("devid", "unknown")
         self.device_data = device
         self.key = key
@@ -213,10 +212,6 @@ class MarstekSensor(MarstekBaseSensor):
                 return value
         return None
 
-    async def async_update(self):
-        """Manually trigger an update."""
-        await self.coordinator.async_request_refresh()
-
 
 class MarstekDiagnosticSensor(MarstekBaseSensor):
     """Sensor for integration diagnostics."""
@@ -240,13 +235,11 @@ class MarstekDiagnosticSensor(MarstekBaseSensor):
         return None
 
 
-class MarstekTotalChargeSensor(SensorEntity):
+class MarstekTotalChargeSensor(CoordinatorEntity, SensorEntity):
     """Sensor to calculate the total charge across all devices."""
 
-    should_poll = False
-
     def __init__(self, coordinator, entry_id):
-        self.coordinator = coordinator
+        super().__init__(coordinator)
         self._attr_name = "Total Charge Across Devices"
         # Use entry_id for a stable unique ID
         self._attr_unique_id = f"total_charge_all_devices_{entry_id}"
@@ -271,13 +264,11 @@ class MarstekTotalChargeSensor(SensorEntity):
         }
 
 
-class MarstekTotalPowerSensor(SensorEntity):
+class MarstekTotalPowerSensor(CoordinatorEntity, SensorEntity):
     """Sensor to calculate the total charge and discharge power across all devices."""
 
-    should_poll = False
-
     def __init__(self, coordinator, entry_id):
-        self.coordinator = coordinator
+        super().__init__(coordinator)
         self._attr_name = "Total Power Across Devices"
         # Use entry_id for a stable unique ID
         self._attr_unique_id = f"total_power_all_devices_{entry_id}"
