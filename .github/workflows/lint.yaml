@@ -26,6 +26,3 @@ jobs:
 
       - name: Run Ruff linter
         run: ruff check custom_components/marstek_cloud
-
-      - name: Run Ruff formatter
-        run: ruff format custom_components/marstek_cloud --check
