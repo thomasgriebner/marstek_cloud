@@ -1,8 +1,13 @@
+"""Config flow for Marstek Cloud integration."""
+
 import logging
+from typing import Any
+
 import voluptuous as vol
+
 from homeassistant import config_entries, exceptions
-from homeassistant.config_entries import OptionsFlowWithReload
 from homeassistant.core import callback, HomeAssistant
+from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
@@ -19,15 +24,19 @@ class InvalidAuth(exceptions.HomeAssistantError):
 class CannotConnect(exceptions.HomeAssistantError):
     """Error to indicate we cannot connect."""
 
-DATA_SCHEMA = vol.Schema({
-    vol.Required("email"): str,
-    vol.Required("password"): str,
-    vol.Required(
-        "scan_interval",
-        default=DEFAULT_SCAN_INTERVAL
-    ): vol.All(vol.Coerce(int), vol.Range(min=10, max=3600)),
-    vol.Optional("default_capacity_kwh", default=5.12): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=100))
-})
+
+DATA_SCHEMA = vol.Schema(
+    {
+        vol.Required("email"): str,
+        vol.Required("password"): str,
+        vol.Required("scan_interval", default=DEFAULT_SCAN_INTERVAL): vol.All(
+            vol.Coerce(int), vol.Range(min=10, max=3600)
+        ),
+        vol.Optional("default_capacity_kwh", default=5.12): vol.All(
+            vol.Coerce(float), vol.Range(min=0.1, max=100)
+        ),
+    }
+)
 
 
 async def validate_input(hass: HomeAssistant, data: dict) -> dict:
@@ -53,7 +62,9 @@ async def validate_input(hass: HomeAssistant, data: dict) -> dict:
     try:
         # Attempt to fetch devices - this validates credentials and API access
         devices = await api.get_devices()
-        _LOGGER.debug(f"Credential validation successful, found {len(devices)} device(s)")
+        _LOGGER.debug(
+            f"Credential validation successful, found {len(devices)} device(s)"
+        )
 
         # Return info for config entry title
         return {"title": f"Marstek Cloud ({data['email']})"}
@@ -69,13 +80,23 @@ async def validate_input(hass: HomeAssistant, data: dict) -> dict:
             # All other UpdateFailed errors are connectivity issues
             raise CannotConnect(error_msg) from ex
 
+
 class MarstekConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Marstek Cloud."""
 
     VERSION = 1
 
-    async def async_step_user(self, user_input=None):
-        """Handle the initial user configuration step."""
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle the initial user configuration step.
+
+        Args:
+            user_input: User input data or None if first display
+
+        Returns:
+            Flow result (form or entry creation)
+        """
         errors = {}
 
         if user_input is not None:
@@ -97,22 +118,40 @@ class MarstekConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "email": user_input["email"],
                         "password": user_input["password"],
                         "scan_interval": user_input["scan_interval"],
-                        "default_capacity_kwh": user_input.get("default_capacity_kwh", DEFAULT_CAPACITY_KWH)
-                    }
+                        "default_capacity_kwh": user_input.get(
+                            "default_capacity_kwh", DEFAULT_CAPACITY_KWH
+                        ),
+                    },
                 )
 
         return self.async_show_form(
-            step_id="user",
-            data_schema=DATA_SCHEMA,
-            errors=errors
+            step_id="user", data_schema=DATA_SCHEMA, errors=errors
         )
 
-    async def async_step_reauth(self, entry_data=None):
-        """Handle reauth flow when credentials expire."""
+    async def async_step_reauth(
+        self, entry_data: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle reauth flow when credentials expire.
+
+        Args:
+            entry_data: Entry data from reauth trigger
+
+        Returns:
+            Flow result
+        """
         return await self.async_step_reauth_confirm()
 
-    async def async_step_reauth_confirm(self, user_input=None):
-        """Confirm reauth with new credentials."""
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Confirm reauth with new credentials.
+
+        Args:
+            user_input: User input with new credentials or None
+
+        Returns:
+            Flow result (form or entry update)
+        """
         config_entry = self._get_reauth_entry()
         errors = {}
 
@@ -132,32 +171,51 @@ class MarstekConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_update_reload_and_abort(
                     config_entry,
                     data={**config_entry.data, **user_input},
-                    reason="reauth_successful"
+                    reason="reauth_successful",
                 )
 
         return self.async_show_form(
             step_id="reauth_confirm",
-            data_schema=vol.Schema({
-                vol.Required("email", default=config_entry.data.get("email")): str,
-                vol.Required("password"): str,
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Required("email", default=config_entry.data.get("email")): str,
+                    vol.Required("password"): str,
+                }
+            ),
             errors=errors,
-            description_placeholders={
-                "email": config_entry.data.get("email", "")
-            }
+            description_placeholders={"email": config_entry.data.get("email", "")},
         )
 
     @staticmethod
     @callback
-    def async_get_options_flow(config_entry):
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> config_entries.OptionsFlow:
+        """Get the options flow handler.
+
+        Args:
+            config_entry: Config entry for this integration
+
+        Returns:
+            Options flow handler instance
+        """
         return MarstekOptionsFlow()
 
 
-class MarstekOptionsFlow(OptionsFlowWithReload):
-    """Handle options flow for Marstek integration - auto-reloads on save."""
+class MarstekOptionsFlow(config_entries.OptionsFlow):
+    """Handle options flow for Marstek integration."""
 
-    async def async_step_init(self, user_input=None):
-        """Manage the options for the integration."""
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Manage the options for the integration.
+
+        Args:
+            user_input: User input with options or None
+
+        Returns:
+            Flow result (form or entry update)
+        """
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
@@ -166,13 +224,15 @@ class MarstekOptionsFlow(OptionsFlowWithReload):
         data_schema = {}
 
         # Add scan_interval as first option
-        data_schema[vol.Optional(
-            "scan_interval",
-            default=options.get(
+        data_schema[
+            vol.Optional(
                 "scan_interval",
-                self.config_entry.data.get("scan_interval", DEFAULT_SCAN_INTERVAL)
+                default=options.get(
+                    "scan_interval",
+                    self.config_entry.data.get("scan_interval", DEFAULT_SCAN_INTERVAL),
+                ),
             )
-        )] = vol.All(vol.Coerce(int), vol.Range(min=10, max=3600))
+        ] = vol.All(vol.Coerce(int), vol.Range(min=10, max=3600))
 
         # Handle missing devices key gracefully
         devices = self.config_entry.data.get("devices", [])
@@ -184,10 +244,15 @@ class MarstekOptionsFlow(OptionsFlowWithReload):
             devid = device.get("devid", "unknown")
             name = device.get("name", f"Device {devid}")
             description = f"Set the capacity (in kWh) for {name}"  # Add description for each option
-            data_schema[vol.Optional(
-                f"{devid}_capacity_kwh",
-                default=options.get(f"{devid}_capacity_kwh", DEFAULT_CAPACITY_KWH),
-                description={"suggested_value": DEFAULT_CAPACITY_KWH, "description": description}
-            )] = vol.Coerce(float)
+            data_schema[
+                vol.Optional(
+                    f"{devid}_capacity_kwh",
+                    default=options.get(f"{devid}_capacity_kwh", DEFAULT_CAPACITY_KWH),
+                    description={
+                        "suggested_value": DEFAULT_CAPACITY_KWH,
+                        "description": description,
+                    },
+                )
+            ] = vol.Coerce(float)
 
         return self.async_show_form(step_id="init", data_schema=vol.Schema(data_schema))
